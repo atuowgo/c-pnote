@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 录音（M2：录音日记） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- 定位（M2：编辑器自动获取位置名，可选） -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="pnote"
         android:name="${applicationName}"

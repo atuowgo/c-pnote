@@ -6,7 +6,9 @@ import '../../core/theme.dart';
 import '../../domain/diary_entry.dart';
 import '../../providers.dart';
 import '../editor/editor_page.dart';
+import '../widgets/audio_player_tile.dart';
 import '../widgets/local_image.dart';
+import '../widgets/video_player_tile.dart';
 
 class DetailPage extends ConsumerWidget {
   const DetailPage({super.key, required this.entryId});
@@ -123,6 +125,36 @@ class _DetailView extends ConsumerWidget {
                             height: 104),
                     ],
                   ),
+                ],
+                if (entry.sketches.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final m in entry.sketches)
+                        LocalImage(path: m.localPath, width: 140, height: 140),
+                    ],
+                  ),
+                ],
+                if (entry.videos.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  for (final v in entry.videos) ...[
+                    VideoPlayerTile(
+                      path: v.localPath,
+                      thumbPath: v.thumbPath,
+                      width: v.width,
+                      height: v.height,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ],
+                if (entry.audios.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  for (final a in entry.audios) ...[
+                    AudioPlayerTile(path: a.localPath, durationMs: a.durationMs),
+                    const SizedBox(height: 8),
+                  ],
                 ],
               ],
             ),

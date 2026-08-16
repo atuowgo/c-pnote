@@ -10,6 +10,15 @@ class DiaryEntry {
   List<MediaAsset> get images =>
       media.where((m) => m.type == 'image').toList(growable: false);
 
+  List<MediaAsset> get audios =>
+      media.where((m) => m.type == 'audio').toList(growable: false);
+
+  List<MediaAsset> get videos =>
+      media.where((m) => m.type == 'video').toList(growable: false);
+
+  List<MediaAsset> get sketches =>
+      media.where((m) => m.type == 'sketch').toList(growable: false);
+
   bool get hasAudio => media.any((m) => m.type == 'audio');
   bool get hasVideo => media.any((m) => m.type == 'video');
 }

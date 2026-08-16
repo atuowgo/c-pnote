@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
@@ -11,7 +12,9 @@ import '../../core/theme.dart';
 import '../../data/db/app_database.dart';
 import '../../data/device_service.dart';
 import '../../providers.dart';
+import '../sketch/sketch_page.dart';
 import '../widgets/local_image.dart';
+import 'audio_recorder_sheet.dart';
 
 /// 编辑中的媒体项（内存态，保存时写入 DB）。
 class _PendingMedia {
@@ -21,6 +24,9 @@ class _PendingMedia {
     required this.localPath,
     this.thumbPath,
     this.sizeBytes,
+    this.durationMs,
+    this.width,
+    this.height,
   });
 
   final String id;
@@ -28,6 +34,9 @@ class _PendingMedia {
   final String localPath;
   final String? thumbPath;
   final int? sizeBytes;
+  final int? durationMs;
+  final int? width;
+  final int? height;
 }
 
 class EditorPage extends ConsumerStatefulWidget {
@@ -101,6 +110,9 @@ class _EditorPageState extends ConsumerState<EditorPage> {
           localPath: m.localPath,
           thumbPath: m.thumbPath,
           sizeBytes: m.sizeBytes,
+          durationMs: m.durationMs,
+          width: m.width,
+          height: m.height,
         )));
     _persisted = true;
     if (mounted) setState(() => _loading = false);
@@ -163,6 +175,9 @@ class _EditorPageState extends ConsumerState<EditorPage> {
           localPath: Value(_media[i].localPath),
           thumbPath: Value(_media[i].thumbPath),
           sizeBytes: Value(_media[i].sizeBytes),
+          durationMs: Value(_media[i].durationMs),
+          width: Value(_media[i].width),
+          height: Value(_media[i].height),
           orderIndex: Value(i),
         ),
     ];
@@ -200,6 +215,106 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     }
   }
 
+  Future<void> _pickVideo(ImageSource source) async {
+    try {
+      final picked = await _picker.pickVideo(
+          source: source, maxDuration: const Duration(minutes: 10));
+      if (picked == null) return;
+      final saved =
+          await ref.read(mediaStorageProvider).saveVideo(picked.path);
+      if (saved == null) return;
+      if (!mounted) return;
+      setState(() {
+        _media.add(_PendingMedia(
+          id: saved.id,
+          type: 'video',
+          localPath: saved.path,
+          thumbPath: saved.thumbPath,
+          sizeBytes: saved.sizeBytes,
+          durationMs: saved.durationMs,
+          width: saved.width,
+          height: saved.height,
+        ));
+      });
+      _scheduleSave();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('插入视频失败：$e')));
+      }
+    }
+  }
+
+  void _openVideoSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.videocam_outlined),
+              title: const Text('拍摄视频'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickVideo(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_library_outlined),
+              title: const Text('从相册选择'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickVideo(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _recordAudio() async {
+    final storage = ref.read(mediaStorageProvider);
+    final result = await showAudioRecorderSheet(
+      context,
+      allocatePath: () => storage.allocatePath('m4a'),
+    );
+    if (result == null) return;
+    final size = await storage.fileSize(result.path);
+    if (!mounted) return;
+    setState(() {
+      _media.add(_PendingMedia(
+        id: _uuid.v4(),
+        type: 'audio',
+        localPath: result.path,
+        sizeBytes: size,
+        durationMs: result.durationMs,
+      ));
+    });
+    _scheduleSave();
+  }
+
+  Future<void> _openSketch() async {
+    final bytes = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(builder: (_) => const SketchPage()),
+    );
+    if (bytes == null) return;
+    final storage = ref.read(mediaStorageProvider);
+    final path = await storage.saveBytes(bytes, 'png');
+    final size = await storage.fileSize(path);
+    if (!mounted) return;
+    setState(() {
+      _media.add(_PendingMedia(
+        id: _uuid.v4(),
+        type: 'sketch',
+        localPath: path,
+        sizeBytes: size,
+      ));
+    });
+    _scheduleSave();
+  }
+
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -229,14 +344,21 @@ class _EditorPageState extends ConsumerState<EditorPage> {
           Navigator.pop(ctx);
           _pickImage(ImageSource.gallery);
         },
+        onVideo: () {
+          Navigator.pop(ctx);
+          _openVideoSourceSheet();
+        },
+        onAudio: () {
+          Navigator.pop(ctx);
+          _recordAudio();
+        },
         onMood: () {
           Navigator.pop(ctx);
           _openMoodSheet();
         },
-        onSoon: (label) {
+        onSketch: () {
           Navigator.pop(ctx);
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('$label（后续里程碑）')));
+          _openSketch();
         },
       ),
     );
@@ -392,10 +514,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
                       for (final m in _media)
                         Stack(
                           children: [
-                            LocalImage(
-                                path: m.thumbPath ?? m.localPath,
-                                width: 100,
-                                height: 100),
+                            _mediaPreview(m),
                             Positioned(
                               top: 2,
                               right: 2,
@@ -426,6 +545,63 @@ class _EditorPageState extends ConsumerState<EditorPage> {
         ],
       ),
     );
+  }
+
+  Widget _mediaPreview(_PendingMedia m) {
+    switch (m.type) {
+      case 'image':
+      case 'sketch':
+        return LocalImage(path: m.thumbPath ?? m.localPath, width: 100, height: 100);
+      case 'video':
+        return Container(
+          width: 100,
+          height: 100,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              m.thumbPath != null
+                  ? LocalImage(path: m.thumbPath!, radius: 0, fit: BoxFit.cover)
+                  : Container(color: Theme.of(context).extension<AppPalette>()!.warm),
+              const ColoredBox(color: Colors.black26),
+              const Icon(Icons.play_circle_fill, color: Colors.white, size: 28),
+            ],
+          ),
+        );
+      case 'audio':
+        final secs = ((m.durationMs ?? 0) / 1000).round();
+        return Container(
+          width: 100,
+          height: 100,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).extension<AppPalette>()!.warm,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.graphic_eq,
+                  color: Theme.of(context).colorScheme.primary, size: 26),
+              const SizedBox(height: 6),
+              Text('$secs″', style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+        );
+      default:
+        return Container(
+          width: 100,
+          height: 100,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Theme.of(context).extension<AppPalette>()!.warm,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.insert_drive_file_outlined),
+        );
+    }
   }
 
   Widget _metaRows(AppPalette palette) {
@@ -513,24 +689,28 @@ class _InsertSheet extends StatelessWidget {
   const _InsertSheet({
     required this.onCamera,
     required this.onGallery,
+    required this.onVideo,
+    required this.onAudio,
     required this.onMood,
-    required this.onSoon,
+    required this.onSketch,
   });
 
   final VoidCallback onCamera;
   final VoidCallback onGallery;
+  final VoidCallback onVideo;
+  final VoidCallback onAudio;
   final VoidCallback onMood;
-  final void Function(String label) onSoon;
+  final VoidCallback onSketch;
 
   @override
   Widget build(BuildContext context) {
     final items = <(IconData, String, VoidCallback)>[
       (Icons.photo_camera_outlined, '相机', onCamera),
       (Icons.photo_library_outlined, '图库', onGallery),
-      (Icons.videocam_outlined, '视频', () => onSoon('视频')),
-      (Icons.mic_none, '录音', () => onSoon('录音')),
+      (Icons.videocam_outlined, '视频', onVideo),
+      (Icons.mic_none, '录音', onAudio),
       (Icons.sentiment_satisfied_outlined, '心情', onMood),
-      (Icons.brush_outlined, '画板', () => onSoon('画板')),
+      (Icons.brush_outlined, '画板', onSketch),
     ];
     return SafeArea(
       child: Padding(
