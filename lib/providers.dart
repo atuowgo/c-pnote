@@ -41,3 +41,13 @@ final entryProvider =
   ref.watch(entriesProvider);
   return ref.watch(diaryRepositoryProvider).getEntry(id);
 });
+
+/// 回收站（已软删除的日记）。
+final trashEntriesProvider = StreamProvider<List<DiaryEntry>>((ref) {
+  return ref.watch(diaryRepositoryProvider).watchTrash();
+});
+
+/// 图库墙：全部媒体（图片/视频/录音/画板）。
+final galleryMediaProvider = StreamProvider<List<MediaAsset>>((ref) {
+  return ref.watch(diaryRepositoryProvider).watchAllMedia();
+});

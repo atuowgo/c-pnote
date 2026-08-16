@@ -134,6 +134,56 @@ class AppDatabase extends _$AppDatabase {
       ),
     );
   }
+
+  // ---------------- 回收站 ----------------
+
+  /// 回收站：已软删除的日记，按删除时间倒序。
+  Stream<List<Diary>> watchDeletedDiaries() {
+    final q = select(diaries)
+      ..where((t) => t.isDeleted.equals(true))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.deletedAt, mode: OrderingMode.desc),
+      ]);
+    return q.watch();
+  }
+
+  Future<void> restoreDiary(String id) {
+    return (update(diaries)..where((t) => t.id.equals(id))).write(
+      DiariesCompanion(
+        isDeleted: const Value(false),
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// 彻底删除一篇日记（连带媒体记录）。返回被删除的媒体行，供上层清理本地文件。
+  Future<List<MediaAsset>> hardDeleteDiary(String id) {
+    return transaction(() async {
+      final media =
+          await (select(mediaAssets)..where((m) => m.diaryId.equals(id))).get();
+      await (delete(mediaAssets)..where((m) => m.diaryId.equals(id))).go();
+      await (delete(diaries)..where((t) => t.id.equals(id))).go();
+      return media;
+    });
+  }
+
+  // ---------------- 图库 ----------------
+
+  /// 所有未删除日记下的媒体（图片/视频/录音/画板），用于图库墙。
+  Stream<List<MediaAsset>> watchAllMedia() {
+    final query = select(mediaAssets).join([
+      innerJoin(diaries, diaries.id.equalsExp(mediaAssets.diaryId)),
+    ])
+      ..where(diaries.isDeleted.equals(false))
+      ..orderBy([
+        OrderingTerm(expression: diaries.entryDate, mode: OrderingMode.desc),
+        OrderingTerm(expression: mediaAssets.orderIndex),
+      ]);
+    return query
+        .watch()
+        .map((rows) => rows.map((r) => r.readTable(mediaAssets)).toList());
+  }
 }
 
 LazyDatabase _openConnection() {

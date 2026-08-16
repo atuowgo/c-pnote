@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,7 +10,11 @@ import '../../domain/diary_entry.dart';
 import '../../providers.dart';
 import '../detail/detail_page.dart';
 import '../editor/editor_page.dart';
+import '../gallery/gallery_page.dart';
+import '../calendar/calendar_page.dart';
 import '../settings/settings_page.dart';
+import '../trash/trash_page.dart';
+import '../widgets/audio_player_tile.dart';
 import '../widgets/local_image.dart';
 
 class TimelinePage extends ConsumerWidget {
@@ -174,6 +180,14 @@ class _EntryCard extends StatelessWidget {
                   path: images.first.thumbPath ?? images.first.localPath,
                   width: 88,
                   height: 88,
+                ),
+              ],
+              if (entry.hasAudio) ...[
+                const SizedBox(height: 11),
+                AudioPlayerTile(
+                  path: entry.audios.first.localPath,
+                  durationMs: entry.audios.first.durationMs,
+                  compact: true,
                 ),
               ],
               const SizedBox(height: 12),
@@ -363,7 +377,15 @@ class _AppDrawer extends ConsumerWidget {
             _DrawerItem(
                 icon: Icons.photo_library_outlined,
                 label: '图库',
-                onTap: () => _soon(context)),
+                onTap: () => _push(context, const GalleryPage())),
+            _DrawerItem(
+                icon: Icons.calendar_today_outlined,
+                label: '日历',
+                onTap: () => _push(context, const CalendarPage())),
+            _DrawerItem(
+                icon: Icons.explore_outlined,
+                label: '漫步',
+                onTap: () => _walk(context, ref)),
             _DrawerItem(
                 icon: Icons.auto_awesome_outlined,
                 label: 'AI 助手',
@@ -372,15 +394,11 @@ class _AppDrawer extends ConsumerWidget {
             _DrawerItem(
                 icon: Icons.settings_outlined,
                 label: '设置',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const SettingsPage()));
-                }),
+                onTap: () => _push(context, const SettingsPage())),
             _DrawerItem(
                 icon: Icons.delete_outline,
                 label: '回收站',
-                onTap: () => _soon(context)),
+                onTap: () => _push(context, const TrashPage())),
           ],
         ),
       ),
@@ -391,6 +409,26 @@ class _AppDrawer extends ConsumerWidget {
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('该功能将在后续里程碑上线')));
+  }
+
+  void _push(BuildContext context, Widget page) {
+    Navigator.of(context).pop();
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => page));
+  }
+
+  void _walk(BuildContext context, WidgetRef ref) {
+    Navigator.of(context).pop();
+    final entries = ref.read(entriesProvider).valueOrNull ?? const [];
+    if (entries.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('还没有日记可以漫步')));
+      return;
+    }
+    final entry = entries[Random().nextInt(entries.length)];
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => DetailPage(entryId: entry.diary.id)),
+    );
   }
 }
 

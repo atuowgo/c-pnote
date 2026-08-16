@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 
 import '../domain/diary_entry.dart';
 import 'db/app_database.dart';
+import 'media_storage.dart';
 
 /// 日记仓储：包裹数据库，向上层提供聚合后的领域数据。
 class DiaryRepository {
@@ -41,6 +42,33 @@ class DiaryRepository {
 
   Future<void> setFavorite(String id, bool value) =>
       _db.setFavorite(id, value);
+
+  /// 回收站列表（软删除的日记 + 媒体）。
+  Stream<List<DiaryEntry>> watchTrash() {
+    return _db.watchDeletedDiaries().asyncMap((rows) async {
+      if (rows.isEmpty) return const <DiaryEntry>[];
+      final ids = rows.map((r) => r.id).toList();
+      final media = await _db.watchMediaFor(ids).first;
+      final byDiary = groupBy(media, (MediaAsset m) => m.diaryId);
+      return rows
+          .map((r) => DiaryEntry(r, byDiary[r.id] ?? const []))
+          .toList(growable: false);
+    });
+  }
+
+  Future<void> restore(String id) => _db.restoreDiary(id);
+
+  /// 彻底删除：先删数据库行，再清理本地媒体文件。
+  Future<void> hardDelete(String id, MediaStorage storage) async {
+    final media = await _db.hardDeleteDiary(id);
+    for (final m in media) {
+      await storage.deleteFile(m.localPath);
+      await storage.deleteFile(m.thumbPath);
+    }
+  }
+
+  /// 图库墙：全部未删除日记下的媒体。
+  Stream<List<MediaAsset>> watchAllMedia() => _db.watchAllMedia();
 }
 
 /// 把扁平的 entry 列表按天分组（用于时间线渲染）。
