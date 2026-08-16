@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
@@ -65,6 +67,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
   String? _mood;
   String? _weather;
   String? _location;
+  double? _lat;
+  double? _lng;
   String? _device;
 
   Timer? _debounce;
@@ -87,6 +91,57 @@ class _EditorPageState extends ConsumerState<EditorPage> {
   Future<void> _initNew() async {
     final model = await currentDeviceModel();
     if (mounted) setState(() => _device = model);
+    _tryAutoLocation();
+  }
+
+  /// 新建日记时尝试自动获取当前位置名；拿不到权限/定位服务/网络时静默
+  /// 失败，回退到用户手动输入，不影响正常写日记。
+  Future<void> _tryAutoLocation() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+
+      String? name;
+      try {
+        final placemarks = await Geocoding()
+            .placemarkFromCoordinates(pos.latitude, pos.longitude);
+        if (placemarks.isNotEmpty) {
+          final pm = placemarks.first;
+          for (final candidate in [pm.subLocality, pm.locality, pm.name]) {
+            if ((candidate ?? '').trim().isNotEmpty) {
+              name = candidate!.trim();
+              break;
+            }
+          }
+        }
+      } catch (_) {
+        // 反解地名失败时仍保留经纬度
+      }
+
+      if (!mounted || _location != null) return; // 用户已手动填写，不覆盖
+      setState(() {
+        _location = name;
+        _lat = pos.latitude;
+        _lng = pos.longitude;
+      });
+      _scheduleSave();
+    } catch (_) {
+      // 权限拒绝 / 定位超时 / 服务不可用：忽略，保持手动输入的能力
+    }
   }
 
   Future<void> _loadExisting() async {
@@ -103,6 +158,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
     _mood = entry.diary.mood;
     _weather = entry.diary.weather;
     _location = entry.diary.locationName;
+    _lat = entry.diary.lat;
+    _lng = entry.diary.lng;
     _device = entry.diary.device;
     _media.addAll(entry.media.map((m) => _PendingMedia(
           id: m.id,
@@ -163,6 +220,8 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       mood: Value(_mood),
       weather: Value(_weather),
       locationName: Value(_location),
+      lat: Value(_lat),
+      lng: Value(_lng),
       device: Value(_device),
       wordCount: Value(_wordCount),
     );
@@ -408,7 +467,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(hintText: '输入地点（M2 将支持自动定位）'),
+          decoration: const InputDecoration(hintText: '输入地点，或新建时自动定位'),
         ),
         actions: [
           TextButton(
@@ -420,7 +479,12 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       ),
     );
     if (result != null) {
-      setState(() => _location = result.trim().isEmpty ? null : result.trim());
+      setState(() {
+        _location = result.trim().isEmpty ? null : result.trim();
+        // 手动改过文字后，之前自动定位的经纬度不再可信，一并清空。
+        _lat = null;
+        _lng = null;
+      });
       _scheduleSave();
     }
   }
