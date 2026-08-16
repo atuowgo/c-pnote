@@ -1,0 +1,586 @@
+<title>日记本设计文档</title>
+<style>
+  :root {
+    --paper: #FAF7F1;
+    --surface: #FFFFFF;
+    --surface-2: #F3EEE4;
+    --ink: #2A2521;
+    --ink-soft: #4E463E;
+    --muted: #8B8073;
+    --line: #E4DCCE;
+    --line-strong: #D3C8B6;
+    --accent: #2F5470;      /* fountain-pen ink blue */
+    --accent-soft: #E7EDF2;
+    --accent-ink: #23415A;
+    --good: #3C7A5A;
+    --warn: #B5762A;
+    --crit: #B04A3F;
+    --radius: 14px;
+    --maxw: 78ch;
+    --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "SF Mono", ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --paper: #1A1815;
+      --surface: #23201B;
+      --surface-2: #2B2721;
+      --ink: #ECE5DA;
+      --ink-soft: #C7BEB1;
+      --muted: #948A7C;
+      --line: #35302A;
+      --line-strong: #443E36;
+      --accent: #7FB0D4;
+      --accent-soft: #23323F;
+      --accent-ink: #A8CCE6;
+      --good: #6FB98F;
+      --warn: #D6A05A;
+      --crit: #D98479;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1A1815;
+    --surface: #23201B;
+    --surface-2: #2B2721;
+    --ink: #ECE5DA;
+    --ink-soft: #C7BEB1;
+    --muted: #948A7C;
+    --line: #35302A;
+    --line-strong: #443E36;
+    --accent: #7FB0D4;
+    --accent-soft: #23323F;
+    --accent-ink: #A8CCE6;
+    --good: #6FB98F;
+    --warn: #D6A05A;
+    --crit: #D98479;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap { display: grid; grid-template-columns: 1fr; gap: 0; }
+  @media (min-width: 1040px) {
+    .wrap { grid-template-columns: 256px minmax(0,1fr); align-items: start; }
+  }
+
+  /* ---- Sidebar TOC ---- */
+  nav.toc {
+    display: none;
+  }
+  @media (min-width: 1040px) {
+    nav.toc {
+      display: block;
+      position: sticky;
+      top: 0;
+      max-height: 100vh;
+      overflow-y: auto;
+      padding: 40px 20px 40px 32px;
+      border-right: 1px solid var(--line);
+    }
+    nav.toc .brand { font-weight: 700; font-size: 15px; letter-spacing: .02em; margin-bottom: 4px; }
+    nav.toc .brand small { display:block; font-weight:500; color: var(--muted); font-size:12px; letter-spacing:.04em; margin-top:2px; }
+    nav.toc ol { list-style: none; margin: 20px 0 0; padding: 0; counter-reset: toc; }
+    nav.toc li { margin: 0; }
+    nav.toc a {
+      display: block; padding: 6px 10px; border-radius: 8px;
+      color: var(--ink-soft); text-decoration: none; font-size: 13.5px;
+      border-left: 2px solid transparent;
+      transition: background .15s, color .15s;
+    }
+    nav.toc a:hover { background: var(--surface-2); color: var(--ink); }
+    nav.toc a .n { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 8px; font-size: 12px; }
+  }
+
+  main { padding: 40px 22px 96px; }
+  @media (min-width: 1040px) { main { padding: 56px 56px 120px; } }
+  .col { max-width: var(--maxw); margin: 0 auto; }
+  @media (min-width: 1040px) { .col { margin: 0; } }
+
+  /* ---- Header ---- */
+  header.doc {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: .22em; font-size: 11px;
+    color: var(--accent); font-weight: 700; margin: 0 0 14px;
+  }
+  h1.title {
+    font-size: clamp(28px, 5vw, 44px); line-height: 1.15; margin: 0;
+    font-weight: 800; letter-spacing: -.01em; text-wrap: balance;
+  }
+  .lede { color: var(--ink-soft); font-size: 17px; margin: 16px 0 22px; max-width: 62ch; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--line);
+  }
+  .badge.accent { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+
+  /* ---- Sections ---- */
+  section { scroll-margin-top: 24px; margin-top: 52px; }
+  section > h2 {
+    font-size: 24px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  section > h2 .num {
+    font-size: 15px; font-weight: 700; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  section > .sub { color: var(--muted); margin: 0 0 22px; font-size: 14.5px; }
+  h3 { font-size: 17.5px; font-weight: 700; margin: 32px 0 10px; letter-spacing: -.005em; }
+  h4 { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: var(--ink-soft); }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent-ink); }
+  strong { font-weight: 700; color: var(--ink); }
+
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin: 5px 0; }
+  li::marker { color: var(--muted); }
+
+  /* ---- Tables ---- */
+  .tablewrap { overflow-x: auto; margin: 8px 0 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 460px; }
+  thead th {
+    text-align: left; font-weight: 700; font-size: 12px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); padding: 12px 16px;
+    border-bottom: 1px solid var(--line-strong); white-space: nowrap;
+    background: var(--surface-2);
+  }
+  tbody td { padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+  td code, p code, li code {
+    font-family: var(--mono); font-size: .86em; background: var(--surface-2);
+    padding: 1px 6px; border-radius: 5px; color: var(--accent-ink); border: 1px solid var(--line);
+  }
+  td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  table.free td:first-child { white-space: normal; font-weight: 400; color: var(--ink-soft); }
+
+  /* ---- Callouts ---- */
+  .call {
+    display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--radius);
+    background: var(--accent-soft); margin: 8px 0 20px; font-size: 14.5px; color: var(--accent-ink);
+    border: 1px solid transparent;
+  }
+  .call .ic { flex: none; font-weight: 800; }
+  .call p { margin: 0; }
+
+  /* ---- Cards / grids ---- */
+  .cards { display: grid; gap: 14px; margin: 8px 0 20px; }
+  @media (min-width: 620px) { .cards.c2 { grid-template-columns: 1fr 1fr; } .cards.c3 { grid-template-columns: repeat(3,1fr); } }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 18px 16px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--ink); font-size: 15px; }
+  .card p { margin: 0; color: var(--ink-soft); font-size: 13.5px; line-height: 1.6; }
+
+  /* ---- ASCII / tree block ---- */
+  pre.tree {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; overflow-x: auto; color: var(--ink-soft); margin: 8px 0 20px;
+  }
+
+  /* pipeline steps */
+  .flow { display: grid; gap: 10px; margin: 8px 0 20px; }
+  .flow .step {
+    display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: start;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
+  }
+  .flow .step .k {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink);
+    display: grid; place-items: center; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums;
+  }
+  .flow .step b { display:block; font-size: 14.5px; }
+  .flow .step span { color: var(--ink-soft); font-size: 13.5px; }
+
+  .pill { display:inline-block; font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:999px; }
+  .pill.g { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+  .pill.w { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .pill.c { background: color-mix(in srgb, var(--crit) 16%, transparent); color: var(--crit); }
+  .pill.a { background: var(--accent-soft); color: var(--accent-ink); }
+
+  hr { border: none; border-top: 1px solid var(--line); margin: 40px 0; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); }
+  .kicker { font-size:12px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); font-weight:700; margin: 0 0 4px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="目录">
+    <div class="brand">手机日记本<small>设计文档 · v0.1 评审稿</small></div>
+    <ol>
+      <li><a href="#s1"><span class="n">01</span>产品概述</a></li>
+      <li><a href="#s2"><span class="n">02</span>功能总览</a></li>
+      <li><a href="#s3"><span class="n">03</span>功能详细设计</a></li>
+      <li><a href="#s4"><span class="n">04</span>信息架构与导航</a></li>
+      <li><a href="#s5"><span class="n">05</span>数据模型</a></li>
+      <li><a href="#s6"><span class="n">06</span>技术架构</a></li>
+      <li><a href="#s7"><span class="n">07</span>AI 能力设计</a></li>
+      <li><a href="#s8"><span class="n">08</span>隐私与安全</a></li>
+      <li><a href="#s9"><span class="n">09</span>非功能需求</a></li>
+      <li><a href="#s10"><span class="n">10</span>迭代规划</a></li>
+      <li><a href="#s11"><span class="n">11</span>风险与开放问题</a></li>
+      <li><a href="#s12"><span class="n">12</span>下一步</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <div class="col">
+      <header class="doc">
+        <p class="eyebrow">Product &amp; Technical Design</p>
+        <h1 class="title">手机日记本 App · 详细设计文档</h1>
+        <p class="lede">以「天」为单位的私人多媒体日记本 —— 随手记录文字 / 图片 / 录音 / 视频 / 手绘，本地优先、端到端加密，并以「历史今天」与 AI 助手让过去的记录持续产生价值。</p>
+        <div class="badges">
+          <span class="badge accent"><span class="dot"></span>v0.1 评审稿</span>
+          <span class="badge">2026-08-16</span>
+          <span class="badge">Flutter</span>
+          <span class="badge">本地优先 + 可选云同步</span>
+          <span class="badge">云端大模型 (Claude)</span>
+          <span class="badge">一期 Android</span>
+        </div>
+      </header>
+
+      <div class="call">
+        <span class="ic">✦</span>
+        <p><strong>已确认选型：</strong>客户端 <strong>Flutter</strong>（一套代码覆盖安卓/iOS）· 存储 <strong>本地优先 + 可选端到端加密云同步</strong> · AI <strong>云端大模型 API</strong>（配套脱敏、显式授权、本地向量检索）。三项均为推荐方案。参考 App 沿用「本地手账 + 历史今天」范式，本设计在其上叠加 <strong>AI 能力、PDF 导入、E2EE 云同步</strong> 三大差异化。</p>
+      </div>
+
+      <!-- 1 -->
+      <section id="s1">
+        <h2><span class="num">01</span>产品概述</h2>
+        <h3>定位与目标用户</h3>
+        <p>一款「以天为单位」的私人多媒体日记本，服务于有长期记录习惯的手账/日记用户、重视隐私希望数据自己掌握的用户，以及有大量历史日记（含 PDF）需要归档整理的用户。</p>
+        <h3>核心价值</h3>
+        <div class="cards c2">
+          <div class="card"><h4>好写</h4><p>随手记录，多媒体一键插入，自动补全天气 / 位置 / 设备 / 字数等上下文。</p></div>
+          <div class="card"><h4>好回看</h4><p>时间线 / 日历 / 图库 / 地图 / 分类 / 漫步多视图，加历史今天与强搜索。</p></div>
+          <div class="card"><h4>私密可控</h4><p>本地优先、端到端加密、App 锁；AI 可关、可脱敏、数据流向透明。</p></div>
+          <div class="card"><h4>会思考</h4><p>AI 助手对话检索、心情洞察与陪伴、结合历史今天的活动推荐。</p></div>
+        </div>
+        <h3>平台范围</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>阶段</th><th>平台</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>一期</td><td>Android</td><td>minSdk 24 / Android 7.0，targetSdk 最新</td></tr>
+            <tr><td>二期</td><td>iOS</td><td>复用 Flutter 业务代码，替换平台通道实现</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 2 -->
+      <section id="s2">
+        <h2><span class="num">02</span>功能模块总览</h2>
+        <pre class="tree">手机日记本
+├─ ① 写日记（编辑器）
+│    文字·图片·录音·视频·手绘 / 心情·天气·位置·标签·收藏 / 媒体查看播放
+├─ ② 日记管理
+│    时间线(默认,按天倒序) · 日历 · 图库墙 · 地图 · 分类 · 漫步
+│    历史今天 · 搜索 · 回收站 · 导入导出(含 PDF 导入)
+├─ ③ 应用管理
+│    账号(本地档案 + 可选云账号) · 设置 · 统计
+└─ ④ AI 能力
+     日记助手(对话检索) · 心情分析陪伴 · 历史今天+活动推荐
+     写作辅助 · 自动标注 · 周/月回顾</pre>
+      </section>
+
+      <!-- 3 -->
+      <section id="s3">
+        <h2><span class="num">03</span>功能详细设计</h2>
+
+        <h3>3.1 写日记（编辑器）</h3>
+        <p>沿用参考 App 的编辑器形态：顶部「日期 / 时间 周几 今天」+ 书签收藏 + 更多菜单；正文占位「记录今日」；正文下方自动带 <strong>天气(多云·31℃)、位置(星河天地1期)、设备(OPPO Find X9 Pro)、字数统计</strong>；底部工具条含 标签(#)、撤销、列表、缩进、计时、日历等；「+」插入弹出底部面板六项。</p>
+        <div class="cards c3">
+          <div class="card"><h4>📷 相机 / 图库</h4><p>拍摄或选图，压缩存本地，生成缩略图，查看支持缩放滑动。</p></div>
+          <div class="card"><h4>🎬 视频</h4><p>拍摄或相册，压缩 + 封面帧，内置播放全屏。</p></div>
+          <div class="card"><h4>🎙 录音</h4><p>内置录音 + 实时波形，倍速播放，可选 AI 转写。</p></div>
+          <div class="card"><h4>🙂 心情</h4><p>emoji + 标签，进入统计与 AI 心情分析。</p></div>
+          <div class="card"><h4>🖌 画板（手绘）</h4><p>笔刷/颜色/橡皮，存矢量笔迹 + PNG 快照。</p></div>
+          <div class="card"><h4>🏷 上下文</h4><p>天气 / 位置 / 设备 / 时间自动采集，均可改可关。</p></div>
+        </div>
+        <h4>内容模型（块结构）</h4>
+        <p>正文采用「块（Block）」结构，便于富文本 + 多媒体混排、导入导出与 AI 解析。技术上以 <code>flutter_quill</code>（Delta）+ 自定义 Embed 实现音视频/手绘嵌入（推荐），原型阶段定稿。</p>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>块类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>paragraph / heading</code></td><td>段落、标题，支持加粗/斜体/下划线/字号/颜色</td></tr>
+            <tr><td><code>bullet / ordered / todo</code></td><td>无序 / 有序 / 清单列表</td></tr>
+            <tr><td><code>quote / divider</code></td><td>引用 / 分割线</td></tr>
+            <tr><td><code>image</code></td><td>缩略图 + 原图 + 说明 + EXIF</td></tr>
+            <tr><td><code>audio</code></td><td>时长 + 波形 + 可选转写</td></tr>
+            <tr><td><code>video</code></td><td>时长 + 封面帧</td></tr>
+            <tr><td><code>sketch</code></td><td>矢量笔迹 + 位图快照</td></tr>
+          </tbody>
+        </table></div>
+        <p>其它：<strong>自动保存草稿</strong>（编辑中定时 + 退出即存）· <strong>一天多篇</strong>（时间线内聚合到该日下）· <strong>收藏/书签</strong>。所有媒体原文件存 App 私有目录，DB 仅存相对路径与元数据。</p>
+
+        <h3>3.2 日记管理</h3>
+        <h4>浏览视图（多种显示方式）</h4>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>视图</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><strong>时间线</strong>（默认）</td><td>按天倒序，左侧大号「日 + 周几」，右侧卡片显示摘要、时间·天气·位置、缩略图；顶部历史今天轮播 + 「共 N 篇」计数</td></tr>
+            <tr><td>日历</td><td>月视图，有日记日期标记，点选跳该日</td></tr>
+            <tr><td>图库墙</td><td>图片/视频瀑布流网格，点击回溯所属日记</td></tr>
+            <tr><td>地图</td><td>按位置聚合，查看足迹</td></tr>
+            <tr><td>分类（标签）</td><td>按标签/本子分类浏览</td></tr>
+            <tr><td>漫步</td><td>随机翻到一篇旧日记（偶遇式回顾）</td></tr>
+          </tbody>
+        </table></div>
+        <h4>历史今天 · 搜索 · 回收站</h4>
+        <ul>
+          <li><strong>历史今天</strong>：首页顶部轮播「N 年/月前的今天」，可推送提醒，作为 AI 活动推荐输入。</li>
+          <li><strong>搜索</strong>：关键词全文（本地 FTS5）+ 语义检索（本地向量），支持自然语言，结果高亮排序。</li>
+          <li><strong>回收站</strong>：删除进回收站保留 30 天可恢复，之后彻底清除。</li>
+        </ul>
+        <h4>导入 / 导出</h4>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>方向</th><th>格式</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td>导出</td><td><strong>应用备份包(.zip)</strong> — 全量 JSON + 媒体 + 清单，可加密</td><td>换机 / 完整无损备份</td></tr>
+            <tr><td>导出</td><td>PDF — 排版渲染，可选时间范围</td><td>打印 / 归档 / 分享</td></tr>
+            <tr><td>导出</td><td>Markdown — 纯文本 + 图片引用</td><td>迁移到其它工具</td></tr>
+            <tr><td>导入</td><td>应用备份包 / Markdown</td><td>还原 / 迁入</td></tr>
+            <tr><td>导入</td><td><strong>PDF（历史日记）</strong></td><td>见下方向导</td></tr>
+          </tbody>
+        </table></div>
+        <div class="call"><span class="ic">📄</span><p><strong>PDF 导入向导（重点需求）</strong> —— 历史日记为 PDF，支持数字版与扫描件两轨导入。</p></div>
+        <div class="flow">
+          <div class="step"><div class="k">1</div><div><b>选择 PDF 文件</b></div></div>
+          <div class="step"><div class="k">2</div><div><b>文本层检测</b><span>有文本层直接提取文字 + 内嵌图片；扫描件走端上 OCR（<code>ml_kit</code>，中英）</span></div></div>
+          <div class="step"><div class="k">3</div><div><b>切分策略</b><span>按日期标题切分（正则识别日期）/ 按页切分 / 整本为一篇，AI 可辅助</span></div></div>
+          <div class="step"><div class="k">4</div><div><b>预览与确认</b><span>列出识别条目及推断日期，批量校正、合并/拆分</span></div></div>
+          <div class="step"><div class="k">5</div><div><b>落库</b><span>导入日记，原 PDF 可作附件保留；扫描件采用「原图 + 可编辑文本」双轨兜底</span></div></div>
+        </div>
+
+        <h3>3.3 应用管理</h3>
+        <p>参考抽屉：账号信息 / 统计 / 图库 / 分类 / 漫步 / 夜间 / 日历 / 主题 / 设置 / 回收。</p>
+        <div class="cards c3">
+          <div class="card"><h4>账号</h4><p>本地档案离线即用；云账号仅在开启云同步时需要，不用于内容分析。</p></div>
+          <div class="card"><h4>设置</h4><p>通用 / 安全隐私 / 备份同步 / 提醒 / AI / 导入导出 / 关于。</p></div>
+          <div class="card"><h4>统计</h4><p>连续天数(第178天)、总篇数(共205篇)、字数、媒体数、心情分布、热力图。</p></div>
+        </div>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>设置分组</th><th>项</th></tr></thead>
+          <tbody>
+            <tr><td>通用</td><td>主题(浅/深/暖/跟随系统)、字体字号、语言、首页默认视图</td></tr>
+            <tr><td>安全隐私</td><td>App 锁(PIN/生物识别)、数据库加密、媒体加密、隐私模式</td></tr>
+            <tr><td>备份同步</td><td>云同步开关、范围、加密口令、本地/网盘备份、自动频率</td></tr>
+            <tr><td>提醒</td><td>每日记录提醒、历史今天推送、AI 周报推送</td></tr>
+            <tr><td>AI</td><td>总开关、隐私级别、上云数据范围、清除 AI 缓存</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 4 -->
+      <section id="s4">
+        <h2><span class="num">04</span>信息架构与导航</h2>
+        <p>导航范式：主时间线 + 左侧抽屉（Drawer）+ 羽毛笔 FAB，贴合参考 App。</p>
+        <pre class="tree">首页（时间线）
+  顶部：☰抽屉 · 日期▼ · 🔍搜索 · 🔖书签 · ⋮更多
+  历史今天轮播 → 按天分组卡片 → 右下 🖋 FAB 新建
+
+☰ 抽屉：账号信息
+  统计 / 图库 / 分类 / 漫步 · 夜间开关
+  日历 / 主题 / 设置 / 回收
+  ✦ AI 助手入口（新增）</pre>
+        <div class="call"><span class="ic">✦</span><p>AI 助手放在抽屉入口 + 时间线顶部一个轻量「问助手」入口（搜索框旁）。</p></div>
+      </section>
+
+      <!-- 5 -->
+      <section id="s5">
+        <h2><span class="num">05</span>数据模型设计</h2>
+        <p>本地数据库采用 <strong>Drift（SQLite）</strong>，媒体走文件系统，向量走本地向量索引，全文用 <strong>FTS5</strong>。</p>
+        <h4>diary（日记）核心字段</h4>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>id</code></td><td>TEXT(uuid)</td><td>主键</td></tr>
+            <tr><td><code>entry_date</code></td><td>DATE</td><td>归属日期（按天分组）</td></tr>
+            <tr><td><code>created_at / updated_at</code></td><td>DATETIME</td><td>创建 / 更新时间</td></tr>
+            <tr><td><code>title</code></td><td>TEXT</td><td>标题（可空，可 AI 生成）</td></tr>
+            <tr><td><code>content</code></td><td>JSON</td><td>块结构正文（Delta/Blocks）</td></tr>
+            <tr><td><code>plain_text</code></td><td>TEXT</td><td>去格式纯文本（供 FTS/AI）</td></tr>
+            <tr><td><code>mood / weather / temperature</code></td><td>TEXT</td><td>心情 / 天气 / 温度快照</td></tr>
+            <tr><td><code>location_name / lat / lng</code></td><td>TEXT/REAL</td><td>地名与坐标（可空）</td></tr>
+            <tr><td><code>device / word_count</code></td><td>TEXT/INT</td><td>设备型号 / 字数</td></tr>
+            <tr><td><code>is_favorite / is_deleted / deleted_at</code></td><td>BOOL/DATETIME</td><td>收藏 / 软删除（回收站）</td></tr>
+            <tr><td><code>notebook_id / sync_rev</code></td><td>TEXT/INT</td><td>所属本子 / 同步版本号</td></tr>
+          </tbody>
+        </table></div>
+        <h4>其它表</h4>
+        <ul>
+          <li><code>media_asset</code>：type(image/audio/video/sketch/pdf)、local_path、thumb_path、cloud_key、duration、尺寸、caption、transcript、order_index</li>
+          <li><code>tag / diary_tag / notebook</code>：标签、关联、本子分类</li>
+          <li><code>embedding</code>：diary_id、chunk_id、vector(BLOB)、model —— 本地语义检索</li>
+          <li><code>setting / profile / sync_state</code>：设置、档案、同步游标与冲突记录</li>
+        </ul>
+      </section>
+
+      <!-- 6 -->
+      <section id="s6">
+        <h2><span class="num">06</span>技术架构</h2>
+        <h3>6.1 客户端（Flutter · Clean Architecture）</h3>
+        <pre class="tree">presentation  — Widgets + 状态管理(Riverpod)
+      │
+domain        — 实体 / UseCase / 仓储接口
+      │
+data          — local: Drift(SQLite)+文件+向量索引
+                remote: 同步网关 / AI 网关(HTTPS)
+platform      — 平台通道: 相机/录音/定位/天气/生物识别</pre>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>领域</th><th>建议库</th></tr></thead>
+          <tbody>
+            <tr><td>状态管理 / 本地 DB</td><td><code>riverpod</code> · <code>drift</code>(SQLite,FTS) · <code>sqlcipher</code>(加密)</td></tr>
+            <tr><td>富文本 / 图片</td><td><code>flutter_quill</code> · <code>image_picker</code> <code>camera</code> <code>flutter_image_compress</code></td></tr>
+            <tr><td>音视频 / 手绘</td><td><code>record</code> <code>just_audio</code> · <code>video_player</code> <code>video_compress</code> · 自研 CustomPainter</td></tr>
+            <tr><td>定位 / 生物识别</td><td><code>geolocator</code> <code>geocoding</code> · <code>local_auth</code></td></tr>
+            <tr><td>PDF / OCR / 向量 / 网络</td><td><code>pdf</code> <code>printing</code> · <code>syncfusion_pdf</code> · <code>ml_kit</code> · <code>sqlite-vec</code> · <code>dio</code></td></tr>
+          </tbody>
+        </table></div>
+        <h3>6.2 后端（仅同步 + AI，不存明文）</h3>
+        <div class="cards c2">
+          <div class="card"><h4>AI 网关</h4><p>代理调用 Claude API，密钥仅存服务端；负责鉴权、限流、脱敏校验、审计。</p></div>
+          <div class="card"><h4>同步服务</h4><p>只存端到端<strong>加密后的</strong>密文，服务端零知识；提供增量同步与冲突检测。</p></div>
+        </div>
+        <div class="call"><span class="ic">◉</span><p>纯本地模式下（未开云同步且未开 AI），App 完全离线可用，<strong>无需后端</strong>。技术栈建议 NestJS/Go + S3 兼容对象存储 + PostgreSQL。</p></div>
+        <h3>6.3 同步机制</h3>
+        <ul>
+          <li><strong>本地优先</strong>：写操作先落本地，异步同步。</li>
+          <li><strong>端到端加密</strong>：用户口令派生密钥（Argon2id）→ 加密后上传，服务端零知识。</li>
+          <li><strong>冲突解决</strong>：字段级 Last-Write-Wins + 版本号(<code>sync_rev</code>) + 墓碑处理删除；不可自动合并时保留双版本。</li>
+          <li><strong>媒体同步</strong>：分块上传 / 断点续传，弱网友好。</li>
+        </ul>
+      </section>
+
+      <!-- 7 -->
+      <section id="s7">
+        <h2><span class="num">07</span>AI 能力详细设计</h2>
+        <h3>7.1 总体架构（RAG）</h3>
+        <div class="flow">
+          <div class="step"><div class="k">1</div><div><b>本地语义检索</b><span>Embedding + 向量库，召回相关日记片段（在本地完成）</span></div></div>
+          <div class="step"><div class="k">2</div><div><b>数据脱敏 / 最小化</b><span>按隐私级别裁剪，只带最小相关片段</span></div></div>
+          <div class="step"><div class="k">3</div><div><b>AI 网关 → Claude API</b><span>携带召回片段 + 指令</span></div></div>
+          <div class="step"><div class="k">4</div><div><b>回答 + 引用来源</b><span>附可点击的日记链接，可追溯、防臆造</span></div></div>
+        </div>
+        <div class="call"><span class="ic">🔒</span><p>Embedding 联网时经网关生成、向量<strong>存本地</strong>，检索<strong>在本地</strong>，仅把召回到的最小片段上云做回答 —— 最大限度减少上云数据。</p></div>
+        <h3>7.2 具体能力</h3>
+        <div class="cards c2">
+          <div class="card"><h4>日记助手（对话检索）</h4><p>「上个月去海边是哪天？」→ 语义检索 → 定位到 7/12 并附跳转卡片；支持多轮追问与条件过滤。</p></div>
+          <div class="card"><h4>心情分析与陪伴</h4><p>分析当天/近 7 天记录，给出心情概览与趋势、温和陪伴对话；识别低落给关怀，不做医疗诊断。</p></div>
+          <div class="card"><h4>历史今天 + 活动推荐</h4><p>结合历史今天与当下天气/位置，推荐今日活动。</p></div>
+          <div class="card"><h4>写作辅助</h4><p>起题、续写、把零散记录整理成当日总结、润色。</p></div>
+          <div class="card"><h4>自动标注</h4><p>保存时可选自动打标签、推断心情、生成标题摘要。</p></div>
+          <div class="card"><h4>周 / 月回顾</h4><p>生成时间段回顾长文与亮点集锦，可推送。</p></div>
+        </div>
+        <h3>7.4 隐私与可控（关键）</h3>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>隐私级别</th><th>行为</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill g">严格</span></td><td>仅上传用户当次明确选择的片段</td></tr>
+            <tr><td><span class="pill a">平衡（默认）</span></td><td>上传语义召回的最小相关片段</td></tr>
+            <tr><td><span class="pill w">全量</span></td><td>允许更大上下文（效果更好，需显式同意）</td></tr>
+          </tbody>
+        </table></div>
+        <p><strong>总开关</strong>默认可关，关闭后内容不出设备；可选<strong>本地脱敏</strong>人名/电话/地址；声明<strong>不用于训练</strong>；可查看/清除 AI 缓存。</p>
+      </section>
+
+      <!-- 8 -->
+      <section id="s8">
+        <h2><span class="num">08</span>隐私与安全</h2>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>层面</th><th>措施</th></tr></thead>
+          <tbody>
+            <tr><td>传输</td><td>全链路 HTTPS/TLS + 证书校验</td></tr>
+            <tr><td>存储</td><td>SQLCipher 加密 DB；媒体可选加密；密钥存 Android Keystore</td></tr>
+            <tr><td>应用锁</td><td>PIN + 生物识别；后台马赛克/隐藏</td></tr>
+            <tr><td>云端</td><td>端到端加密，服务端零知识，对象存储仅存密文</td></tr>
+            <tr><td>AI</td><td>最小化 + 脱敏 + 可关（见 §7.4）</td></tr>
+            <tr><td>权限</td><td>相机/麦克风/定位/存储按需申请，拒绝后降级可用</td></tr>
+            <tr><td>合规</td><td>隐私政策、用户协议、数据导出与账号注销（可删除权）</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 9 -->
+      <section id="s9">
+        <h2><span class="num">09</span>非功能性需求</h2>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>项</th><th>目标</th></tr></thead>
+          <tbody>
+            <tr><td>性能</td><td>时间线滚动 60fps；千级日记流畅（分页 + 懒加载缩略图）</td></tr>
+            <tr><td>启动 / 离线</td><td>冷启动 &lt; 2s；无网络除 AI/同步外全部可用</td></tr>
+            <tr><td>可靠</td><td>自动草稿、崩溃恢复、备份不丢数据</td></tr>
+            <tr><td>可访问性</td><td>字号缩放、深色模式、对比度、TalkBack 基本支持</td></tr>
+            <tr><td>国际化 / 兼容</td><td>中文优先、架构支持多语言；Android 7.0+ 主流机型适配</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 10 -->
+      <section id="s10">
+        <h2><span class="num">10</span>迭代规划（里程碑）</h2>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>阶段</th><th>内容</th><th>交付</th></tr></thead>
+          <tbody>
+            <tr><td><strong>M0</strong> 设计/原型</td><td>本设计文档 + 交互原型</td><td>评审通过</td></tr>
+            <tr><td><strong>M1</strong> MVP</td><td>写日记(文字+图片)、时间线、本地存储、基础设置、草稿</td><td>可用日记本</td></tr>
+            <tr><td><strong>M2</strong> 多媒体+浏览</td><td>录音/视频/手绘+播放、日历/图库/漫步、历史今天、心情/天气/位置、App 锁、回收站</td><td>完整记录与回看</td></tr>
+            <tr><td><strong>M3</strong> 导入导出+同步</td><td>备份包导入导出、PDF 导出、<strong>PDF 导入向导(OCR)</strong>、E2EE 云同步</td><td>数据可迁移可备份</td></tr>
+            <tr><td><strong>M4</strong> AI</td><td>日记助手(RAG)、心情分析、活动推荐、写作辅助、自动标注、周月回顾</td><td>AI 差异化</td></tr>
+            <tr><td><strong>M5</strong> 打磨上架</td><td>性能/稳定性/无障碍、统计完善、安卓上架</td><td>Android 正式版</td></tr>
+            <tr><td><strong>M6</strong> iOS 扩展</td><td>平台通道适配、iOS 打磨、上架</td><td>iOS 版</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 11 -->
+      <section id="s11">
+        <h2><span class="num">11</span>风险与开放问题</h2>
+        <div class="tablewrap"><table class="free">
+          <thead><tr><th>#</th><th>风险 / 待定</th><th>建议</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>富文本方案</td><td>Delta vs 自定义块，原型阶段定稿（推荐 Delta）</td></tr>
+            <tr><td>2</td><td>扫描件 OCR 精度</td><td>中文手写识别有限，「原图+可编辑文本」双轨兜底</td></tr>
+            <tr><td>3</td><td>天气/地理 API 选型</td><td>选国内可用、合规的服务</td></tr>
+            <tr><td>4</td><td>AI 成本与限流</td><td>本地检索 + 片段上云控成本；免费额度/订阅策略</td></tr>
+            <tr><td>5</td><td>E2EE 口令找回</td><td>口令丢失无法恢复，强提示 + 可选恢复码</td></tr>
+            <tr><td>6</td><td>第三方登录合规</td><td>微信/Google 按上架地区合规接入</td></tr>
+            <tr><td>7</td><td>商业模式</td><td>免费 + AI/云同步高级订阅？需产品确认</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 12 -->
+      <section id="s12">
+        <h2><span class="num">12</span>下一步</h2>
+        <div class="flow">
+          <div class="step"><div class="k">1</div><div><b>评审本文档</b><span>标注需要调整/补充的点</span></div></div>
+          <div class="step"><div class="k">2</div><div><b>交互原型</b><span>关键页：时间线首页、写日记编辑器、历史今天、AI 助手、PDF 导入向导、设置</span></div></div>
+          <div class="step"><div class="k">3</div><div><b>M1 实施</b><span>原型确认后进入开发</span></div></div>
+        </div>
+        <div class="call"><span class="ic">✎</span><p>若能补充参考 App 名称或更多截图（AI / 导入 / 统计页），可进一步对齐交互细节。</p></div>
+      </section>
+
+      <footer>
+        手机日记本 App · 详细设计文档 v0.1（评审稿） · 2026-08-16 · 待评审 → 原型 → 实施
+      </footer>
+    </div>
+  </main>
+</div>
