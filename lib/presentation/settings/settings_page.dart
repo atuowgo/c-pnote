@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_lock.dart';
 import '../../core/settings.dart';
 import '../../core/theme.dart';
+import 'pin_dialogs.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -11,6 +13,7 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final mode = ref.watch(themeModeProvider);
+    final lock = ref.watch(appLockSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
@@ -37,9 +40,19 @@ class SettingsPage extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.lock_outline),
               title: const Text('App 锁（PIN / 生物识别）'),
-              trailing: Text('未开启', style: TextStyle(color: palette.subtle)),
-              onTap: () => _soon(context),
+              subtitle: Text(lock.enabled ? '已开启' : '未开启',
+                  style: TextStyle(color: palette.subtle)),
+              trailing: Switch(
+                value: lock.enabled,
+                onChanged: (v) => _toggleLock(context, ref, v),
+              ),
             ),
+            if (lock.enabled)
+              ListTile(
+                leading: const SizedBox(width: 24),
+                title: const Text('修改 PIN'),
+                onTap: () => _changePin(context, ref),
+              ),
           ]),
           _group(palette, '备份与同步'),
           _card([
@@ -127,5 +140,36 @@ class SettingsPage extends ConsumerWidget {
   void _soon(BuildContext context) {
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('该功能将在后续里程碑上线')));
+  }
+
+  Future<void> _toggleLock(
+      BuildContext context, WidgetRef ref, bool value) async {
+    final controller = ref.read(appLockSettingsProvider.notifier);
+    if (value) {
+      final pin = await promptCreatePin(context);
+      if (pin == null) return;
+      await controller.setPin(pin);
+      await controller.setEnabled(true);
+      // 刚设置完毕，视为已通过验证，避免立刻又弹出锁屏。
+      ref.read(appUnlockedProvider.notifier).state = true;
+    } else {
+      if (!context.mounted) return;
+      final ok = await promptVerifyPin(context, ref);
+      if (!ok) return;
+      await controller.setEnabled(false);
+    }
+  }
+
+  Future<void> _changePin(BuildContext context, WidgetRef ref) async {
+    final verified = await promptVerifyPin(context, ref);
+    if (!verified) return;
+    if (!context.mounted) return;
+    final pin = await promptCreatePin(context);
+    if (pin == null) return;
+    await ref.read(appLockSettingsProvider.notifier).setPin(pin);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('PIN 已更新')));
+    }
   }
 }

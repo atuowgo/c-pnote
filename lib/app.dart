@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/settings.dart';
 import 'core/theme.dart';
 import 'presentation/home/timeline_page.dart';
+import 'presentation/lock/app_lock_gate.dart';
 
 class PnoteApp extends ConsumerWidget {
   const PnoteApp({super.key});
@@ -18,6 +19,8 @@ class PnoteApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       home: const TimelinePage(),
+      builder: (context, child) =>
+          AppLockGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }
